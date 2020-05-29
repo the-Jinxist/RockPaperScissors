@@ -22,10 +22,7 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
-import java.io.BufferedReader
-import java.io.FileNotFoundException
-import java.io.FileReader
-import java.io.IOException
+import java.io.*
 import java.nio.MappedByteBuffer
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
@@ -72,9 +69,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         takePictureButton.setOnClickListener(this)
         detectHandSignButton.setOnClickListener(this)
 
+        loadCSVFiles()
+
     }
 
-    fun processImage(bitmap: Bitmap
+    private fun processImage(bitmap: Bitmap
     ): TensorImage{
 
         val tensorImage = TensorImage(DataType.FLOAT32)
@@ -90,7 +89,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         return imageProcessor.process(tensorImage)
     }
 
-    fun detectHandSign(image: TensorImage): IntArray{
+    private fun detectHandSign(image: TensorImage): IntArray{
         val interpreter = Interpreter(modelBuffer)
         interpreter.run(image.tensorBuffer.buffer, outputs.buffer)
         Log.e(this.javaClass.simpleName, "Output: ${outputs.intArray}")
@@ -99,7 +98,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         return outputs.intArray
     }
 
-    fun convertUriToBitmap(imageUri: Uri): Bitmap{
+    private fun convertUriToBitmap(imageUri: Uri): Bitmap{
         var bitmap: Bitmap? = null
         try {
             val inputStream = contentResolver.openInputStream(imageUri)
@@ -134,15 +133,42 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
-    fun loadCSVFiles(){
-        val tsvFile = BufferedReader(FileReader("vecs.tsv"))
-        var dataRow = tsvFile.readLine()
+    fun performEuclideanDistanceCalculation(vectorOutputString: MutableList<String>, labelOutputString: MutableList<String>){
 
-        val outputString = ""
-        while (dataRow != null){
-            outputString.plus(outputString)
-            dataRow = tsvFile.readLine()
+        val listOfEuclideanDistances = mutableListOf<Float>()
+
+        if (vectorOutputString.size == labelOutputString.size){
+            for(vectorString in vectorOutputString){
+                vectorString.split('\t').map { it.toFloat() }
+            }
+        }else{
+            Log.e(this.javaClass.simpleName, "Euclidean Calculation: The lengths differ")
         }
+    }
+
+    private fun loadCSVFiles(){
+
+        val vectorsTsvFile = BufferedReader(InputStreamReader(assets.open("vecs.tsv")))
+        var vectorDataRow = vectorsTsvFile.readLine()
+
+        val vectorOutputString = mutableListOf<String>()
+        while (vectorDataRow != null){
+            vectorOutputString.add(vectorDataRow)
+            Log.e(this.javaClass.simpleName, "Test With: $vectorOutputString")
+            vectorDataRow = vectorsTsvFile.readLine()
+        }
+        vectorsTsvFile.close()
+
+        val labelsTsvFile = BufferedReader(InputStreamReader(assets.open("labels.tsv")))
+        var labelsDataRow = labelsTsvFile.readLine()
+
+        val labelsOutputString = mutableListOf<String>()
+        while (labelsDataRow != null){
+            labelsOutputString.add(labelsDataRow)
+            Log.e(this.javaClass.simpleName, "Test With: $labelsOutputString")
+            labelsDataRow = labelsTsvFile.readLine()
+        }
+        labelsTsvFile.close()
 
     }
 
