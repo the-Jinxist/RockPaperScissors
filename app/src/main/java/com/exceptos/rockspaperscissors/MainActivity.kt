@@ -202,20 +202,24 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             for(vectorString in vectorOutputString){
                 //Taking each string, separating it be tabs and calculating the euclidean distance
                 val vectorArray = vectorString.split('\t').map { it.toFloat() }.toFloatArray()
-                Log.e(this.javaClass.simpleName, "Vector Array: $vectorArray")
+                Log.e(this.javaClass.simpleName, "Vector Array: $${vectorArray[14]}")
                 val distance = calculateEuclideanDistance(detectionOutputArray, vectorArray)
                 //Storing this euclidean distance in a list
+                Log.e(this.javaClass.simpleName, "Distance: $distance")
                 listOfEuclideanDistances.add(distance)
             }
 
             //Finding the minimum euclidean distance
             val smallestFloat = findSmallestDistance(listOfEuclideanDistances)
+            Log.e(this.javaClass.simpleName, "Smallest distance: $smallestFloat")
 
             /**
             // Corresponding it to the index of the list of labels [labelOutputString]
             */
             val index = listOfEuclideanDistances.indexOf(smallestFloat)
+            Log.e(this.javaClass.simpleName, "Index of the smallest distance : $smallestFloat")
             val label = labelOutputString[index]
+            Log.e(this.javaClass.simpleName, "Label of the hand sign : $label")
 
             notifyHandSign(label)
 
