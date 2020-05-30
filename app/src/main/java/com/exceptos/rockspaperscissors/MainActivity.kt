@@ -1,6 +1,7 @@
 package com.exceptos.rockspaperscissors
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -10,21 +11,17 @@ import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import org.tensorflow.lite.DataType
+import com.exceptos.rockspaperscissors.Calculations.Companion.calculateEuclideanDistance
+import com.exceptos.rockspaperscissors.Calculations.Companion.findSmallestDistance
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
-import org.tensorflow.lite.support.common.ops.CastOp
-import org.tensorflow.lite.support.common.ops.NormalizeOp
-import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
-import org.tensorflow.lite.support.image.ops.ResizeOp
-import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp
-import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
-import java.io.*
+import java.io.BufferedReader
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.io.InputStreamReader
 import java.nio.MappedByteBuffer
-import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
 
@@ -41,7 +38,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             if (imageBitmap != null){
                 Log.e(this.javaClass.simpleName, "Detection started")
 
-                val processedImage = processImage(imageBitmap!!)
+                val processedImage = ImageProcessorUtil.processImage(imageBitmap!!)
                 val outputArray = detectHandSign((processedImage))
 
                 if (mVectorOutputString.isNotEmpty() && mLabelOutputString.isNotEmpty()){
@@ -56,7 +53,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
-    private lateinit var outputs: TensorBuffer
     private lateinit var modelBuffer: MappedByteBuffer
     private var imageBitmap: Bitmap? = null
     private lateinit var mVectorOutputString: MutableList<String>
@@ -72,7 +68,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        outputs = TensorBuffer.createFixedSize(IntArray(16), DataType.FLOAT32)
+        //Initializing variables
         modelBuffer = FileUtil.loadMappedFile(this, "model.tflite")
 
         detectHandSignButton = findViewById(R.id.detect_hand_sign)
@@ -90,34 +86,18 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     }
 
-    private fun processImage(bitmap: Bitmap
-    ): TensorImage{
-
-        val tensorImage = TensorImage(DataType.FLOAT32)
-        tensorImage.load(bitmap)
-
-        val imageProcessor = ImageProcessor.Builder()
-            .add(ResizeOp(300, 300, ResizeOp.ResizeMethod.BILINEAR))
-            .add(ResizeWithCropOrPadOp(300, 300))
-            .add(NormalizeOp(255f, 255f))
-            .add(CastOp(DataType.FLOAT32))
-            .build()
-
-        Log.e(this.javaClass.simpleName, "Processing Image..")
-
-        return imageProcessor.process(tensorImage)
-    }
 
     private fun detectHandSign(image: TensorImage): FloatArray{
 
 //        float[][] result = new float[1][labelList.size()];
 
         val interpreter = Interpreter(modelBuffer)
+
+        //The output is said to be an array containing 16 floats
         val result = arrayOf(FloatArray(16))
         interpreter.run(image.buffer, result)
-        Log.e(this.javaClass.simpleName, "Output: ${result[0][6]}")
-        Toast.makeText(this, "Output: ${result[0][3]}", Toast.LENGTH_LONG)
-            .show()
+
+        //Return the output float array
         return result[0]
     }
 
@@ -156,36 +136,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
-    private fun findSmallestDistance(floatList: List<Float>): Float{
-        //Finding the smallest value in the array
-        var smallestFloat = floatList[0]
-        for (float in floatList){
-            if (float < smallestFloat) smallestFloat = float
-        }
-        return smallestFloat
-    }
-
-    private fun calculateEuclideanDistance(detectionOutputArray: FloatArray, vectorArray: FloatArray): Float{
-        //The formula: sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
-        var sum = 0f
-        if (detectionOutputArray.size == vectorArray.size){
-            for(i in (0..detectionOutputArray.size - 1)){
-                sum += (detectionOutputArray[i] - vectorArray[i]) * (detectionOutputArray[i] - vectorArray[i])
-            }
-        }else{
-            Log.e(this.javaClass.simpleName, "Euclidean Calculation: The lengths of output vectors and test vectors differ")
-
-        }
-
-        return sqrt(sum)
-    }
-
 
     /**
      *
-     * @param vectorOutputString Contains lines of vectors seperated by tabs which will be used to test the output
+     * @param vectorOutputString Contains lines of vectors separated by tabs which will be used to test the output
      * @param labelOutputString Contains each label by index
-     * @param detectionOutputArray The ouput we which to identify
+     * @param detectionOutputArray The output we which to identify
      */
     fun performEuclideanDistanceCalculation(
         vectorOutputString: MutableList<String>,
@@ -200,10 +156,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         if (vectorOutputString.size == labelOutputString.size){
             for(vectorString in vectorOutputString){
+
                 //Taking each string, separating it be tabs and calculating the euclidean distance
                 val vectorArray = vectorString.split('\t').map { it.toFloat() }.toFloatArray()
                 Log.e(this.javaClass.simpleName, "Vector Array: $${vectorArray[14]}")
                 val distance = calculateEuclideanDistance(detectionOutputArray, vectorArray)
+
                 //Storing this euclidean distance in a list
                 Log.e(this.javaClass.simpleName, "Distance: $distance")
                 listOfEuclideanDistances.add(distance)
@@ -217,12 +175,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             // Corresponding it to the index of the list of labels [labelOutputString]
             */
             val index = listOfEuclideanDistances.indexOf(smallestFloat)
-            Log.e(this.javaClass.simpleName, "Index of the smallest distance : $smallestFloat")
             val label = labelOutputString[index]
-            Log.e(this.javaClass.simpleName, "Label of the hand sign : $label")
 
             notifyHandSign(label)
-
 
         }else{
             Log.e(this.javaClass.simpleName, "Euclidean Calculation: The lengths of labels and test vectors differ")
@@ -230,18 +185,24 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun notifyHandSign(label: String) {
+
+        val alertDialog = AlertDialog.Builder(this)
+        alertDialog.setCancelable(true)
+
         when(label){
             "0" -> {
-                Toast.makeText(this, "This hand sign is Rock", Toast.LENGTH_LONG)
-                    .show()
+                alertDialog.setMessage("This hand sign is Rock!!")
+                alertDialog.show()
+
             }
             "1" -> {
-                Toast.makeText(this, "This hand sign is Paper", Toast.LENGTH_LONG)
-                    .show()
+                alertDialog.setMessage("This hand sign is Paper!!")
+                alertDialog.show()
+
             }
             "2" -> {
-                Toast.makeText(this, "This hand sign is Scissors", Toast.LENGTH_LONG)
-                    .show()
+                alertDialog.setMessage("This hand sign is Scissors!!")
+                alertDialog.show()
             }
         }
     }
