@@ -9,8 +9,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.view.View.GONE
+import android.view.View.VISIBLE
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.ProgressBar
 import androidx.appcompat.app.AppCompatActivity
 import com.exceptos.rockspaperscissors.Calculations.Companion.calculateEuclideanDistance
 import com.exceptos.rockspaperscissors.Calculations.Companion.findSmallestDistance
@@ -27,6 +30,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onClick(p0: View?) {
         if (p0!! == takePictureButton){
+
+            //Pick image from gallery
             val cameraIntent =  Intent(
                 Intent.ACTION_PICK
             )
@@ -34,10 +39,15 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             if (cameraIntent.resolveActivity(packageManager) != null){
                 startActivityForResult(cameraIntent, PICK_USER_PROFILE_IMAGE)
             }
-        }else if(p0 == detectHandSignButton){
-            if (imageBitmap != null){
-                Log.e(this.javaClass.simpleName, "Detection started")
 
+        }else if(p0 == detectHandSignButton){
+            progressBar.visibility = VISIBLE
+            if (imageBitmap != null){
+
+                Log.e(this.javaClass.simpleName, "Detection started")
+                progressBar.visibility = VISIBLE
+
+                //Where Detection Starts
                 val processedImage = ImageProcessorUtil.processImage(imageBitmap!!)
                 val outputArray = detectHandSign((processedImage))
 
@@ -63,6 +73,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var detectHandSignButton: Button
     private lateinit var takePictureButton: Button
     private lateinit var imageView: ImageView
+    private lateinit var progressBar: ProgressBar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,6 +86,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         detectHandSignButton.isEnabled = false
         takePictureButton = findViewById(R.id.take_picture)
         imageView = findViewById(R.id.image_view)
+        progressBar = findViewById(R.id.progress__circular)
 
         mVectorOutputString = mutableListOf()
         mLabelOutputString = mutableListOf()
@@ -86,12 +98,26 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     }
 
+    override fun onStart() {
+        super.onStart()
 
+        if (imageBitmap == null){
+            detectHandSignButton.isEnabled = true
+        }
+    }
+
+    /**
+     *
+     * This stats the interpreter with the bitmap processed into the
+     * tensor image @param[image]
+     *
+     */
     private fun detectHandSign(image: TensorImage): FloatArray{
 
 //        float[][] result = new float[1][labelList.size()];
-
-        val interpreter = Interpreter(modelBuffer)
+        val options = Interpreter.Options()
+        val interpreter = Interpreter(modelBuffer, options)
+        
 
         //The output is said to be an array containing 16 floats
         val result = arrayOf(FloatArray(16))
@@ -101,6 +127,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         return result[0]
     }
 
+    /**
+     * 
+     * Converting the image uri @param[imageUri] to bitmap so we can 
+     * use it with the Tensor Image
+     * 
+     */
     private fun convertUriToBitmap(imageUri: Uri): Bitmap{
         var bitmap: Bitmap? = null
         try {
@@ -186,9 +218,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun notifyHandSign(label: String) {
 
+        progressBar.visibility = GONE
+
         val alertDialog = AlertDialog.Builder(this)
         alertDialog.setCancelable(true)
 
+        //Checking the labels with their categories
         when(label){
             "0" -> {
                 alertDialog.setMessage("This hand sign is Rock!!")
